@@ -113,80 +113,96 @@ $Z_{ADT} \in \mathbb{R}^{3484 \times d}$ (Spatially smoothed proteomic embedding
 ## Module 5: Cross-Modal Contrastive Alignment (COSMOS Logic)
 
 ### 1. The Core Architectural Problem Solved
-Even after spatial encoding, the transcriptomic ($Z_{RNA}$) and proteomic ($Z_{ADT}$) embeddings exist in separate feature spaces, making direct integration difficult. Simple concatenation or correlation methods often fail to align these spaces effectively, which can introduce artifact mismatches during clustering. Module 5 uses contrastive learning to project both modalities into a shared coordinate system where matching biological signals overlap perfectly.
+When the features leave the Graph Attention Layers (Module 4), the transcriptomic representation ($\mathbf{Z}_{\text{RNA}}$) and the proteomic representation ($\mathbf{Z}_{\text{ADT}}$) are decoupled. Because they derive from different feature types (18,085 genes vs. 31 proteins), they exist in completely separate mathematical coordinate systems. If you fuse them without alignment, the model cannot calculate cross-modal relationships accurately.
+Module 5 solves this by acting as a cross-modal synchronization bridge, mapping both paths into a shared coordinate space where a gene expression profile can directly "speak" to a surface protein marker.
 
 ### 2. The Step-by-Step Mechanism & Internal Flow
-Modality-specific embeddings ($Z_{RNA}$ and $Z_{ADT}$) are projected into a common latent space.
-The model forms positive pairs using the RNA and protein data from the same spatial spot.
-Negative pairs are formed by pairing the RNA profile of a spot with the protein profiles of all other spots on the slide.
-An optimization loss functions like a mathematical magnet, pulling positive pairs together while pushing negative pairs apart.
+Batch Slicing & Pairing: For each spot $i$ out of the 3,484 spots, the model isolates its dual representations. It creates a Positive Pair by matching a spot's RNA vector with its own Protein vector ($\mathbf{Z}_{\text{RNA}, i}$ and $\mathbf{Z}_{\text{ADT}, i}$).
+Negative Matrix Generation: The model pairs that same spot $i$'s RNA vector with the Protein vectors of all other spots in the training batch ($\mathbf{Z}_{\text{RNA}, i}$ and $\mathbf{Z}_{\text{ADT}, j \neq i}$), treating them as Negative Pairs.
+Similarity Maximization (The Contrastive Tug-of-War): The module calculates a similarity score for all pairs. It shifts the weights of the encoders to pull positive pairs close together while aggressively pushing all negative pairs apart.
 
 ### 3. Algorithms & Deep Mathematical Logic
-InfoNCE Objective Maximization: The contrastive alignment loss $\mathcal{L}_{cl}$ is defined as:
-$$\mathcal{L}_{cl} = -\frac{1}{N}\sum_{i=1}^N \log \frac{\exp\left(\text{sim}(Z_{RNA,i}, Z_{ADT,i}) / \tau\right)}{\sum_{j=1}^N \exp\left(\text{sim}(Z_{RNA,i}, Z_{ADT,j}) / \tau\right)}$$
-Where $\text{sim}(u, v) = \frac{u^T v}{\|u\| \|v\|}$ measures cosine similarity, $N=3484$, and $\tau$ is a temperature tuning parameter. Minimizing this objective maximizes the mutual information between the two modalities, synchronizing them into a shared coordinate system.
+InfoNCE (Information Noise-Contrastive Estimation) Loss: The alignment is governed by a symmetric InfoNCE loss function. It calculates the probability that the network can correctly match a spot's RNA profile to its true protein profile out of a crowd of mismatched negative profiles:
+$$\mathcal{L}_{\text{cl}} = -\frac{1}{2N}\sum_{i=1}^{N} \left[ \log \frac{\exp(\text{sim}(\mathbf{Z}_{\text{RNA},i}, \mathbf{Z}_{\text{ADT},i})/\tau)}{\sum_{j=1}^{N} \exp(\text{sim}(\mathbf{Z}_{\text{RNA},i}, \mathbf{Z}_{\text{ADT},j})/\tau)} + \log \frac{\exp(\text{sim}(\mathbf{Z}_{\text{ADT},i}, \mathbf{Z}_{\text{RNA},i})/\tau)}{\sum_{j=1}^{N} \exp(\text{sim}(\mathbf{Z}_{\text{ADT},i}, \mathbf{Z}_{\text{RNA},j})/\tau)} \right]$$
+Where $\text{sim}(\mathbf{u}, \mathbf{v}) = \frac{\mathbf{u} \cdot \mathbf{v}^T}{\|\mathbf{u}\| \|\mathbf{v}\|}$ (Cosine Similarity) and $\tau$ is a temperature parameter that scales the sharpness of the penalties.
 
 ### 4. Inputs & Dimensionalities
-Latent Components: $Z_{RNA} \in \mathbb{R}^{3484 \times d}$ and $Z_{ADT} \in \mathbb{R}^{3484 \times d}$
+Uncalibrated Embeddings: $\mathbf{Z}_{\text{RNA}} \in \mathbb{R}^{3484 \times d}$ and $\mathbf{Z}_{\text{ADT}} \in \mathbb{R}^{3484 \times d}$ (Spatially aware outputs directly from Module 4).
 
 ### 5. Outputs & Dimensionalities
-Aligned Manifolds: Synchronized representations of $Z_{RNA}$ and $Z_{ADT}$, preparing them for multi-modal fusion.
-Loss Value: $\mathcal{L}_{cl} \in \mathbb{R}^1$ (Fed into the Optimization Hub)
+Aligned Manifold Matrices: Separated but synchronized matrices $\mathbf{Z}_{\text{RNA}}$ and $\mathbf{Z}_{\text{ADT}}$, sharing identical coordinate fields, alongside the scalar error matrix $\mathcal{L}_{\text{cl}}$ sent to the total training loop.
 
 ## Module 6: Adaptive Dual-Attention Fusion (SpatialGlue Logic)
 
 ### 1. The Core Architectural Problem Solved
-Biological signals are not uniformly reliable across all tissue regions. For instance, in a lymph node, the RNA profile might be noisy or drop out in the medulla, while specific protein markers remain clear. Conversely, transcriptomics might offer better resolution for cell sub-populations in the cortex than a limited protein panel can provide. Module 6 addresses this by using a hierarchical attention mechanism that dynamically weights and prioritizes the most reliable data type at each spot.
+Biological signals are not uniformly reliable across all tissue regions. In a human lymph node, the transcriptomic profile might suffer from high dropout rates in the Medulla, while specific proteomic surface antibody markers remain stable. Conversely, in the Cortex, transcriptomics offers a deeper view of cell sub-populations than a limited 31-protein panel can capture.
+Module 6 resolves this by implementing a Hierarchical (Two-Tier) Attention Mechanism. Instead of treating all data equally everywhere, it dynamically evaluates data quality spot-by-spot to prioritize the highest-signal modality at each physical coordinate.
 
-### 2. The Step-by-Step Mechanism & Internal Flow
-Within-Modality Evaluation: For each modality, the model learns attention weights to balance the contributions of the spatial physical layout ($A_s$) and the molecular similarity graph ($A_f$).
-Between-Modality Evaluation: The model calculates an attention weight ($\omega$) for each spot to balance the importance of the RNA vs. Protein data stream.
-Adaptive Fusion: The final integrated embedding is constructed as a weighted sum of the two modalities based on these spot-level attention values.
+### 2. Tier 1: Within-Modality Attention (Graph Blending)
+Before mixing genes and proteins together, the model must optimize the representation inside each individual modality. Each modality has two competing neighborhood "opinions" from Module 4: the Physical Layout ($A_s$) and the Biological Similarity Graph ($A_f$).
 
-### 3. Algorithms & Deep Mathematical Logic
-Hierarchical Modality Gating: For each spot $i$, attention coefficients ($\omega_{RNA,i}, \omega_{ADT,i}$) are calculated using a softmax gating network based on feature stability and entropy:
-$$\omega_{RNA,i}, \omega_{ADT,i} = \text{Softmax}\left( \mathbf{v}^T \tanh\left( \mathbf{W}_g Z_{RNA,i} \right), \mathbf{v}^T \tanh\left( \mathbf{W}_g Z_{ADT,i} \right) \right)$$
-Where $\mathbf{W}_g$ is a weight matrix and $\mathbf{v}$ is an attention vector.
-Linear Fusion Projection: The unified latent space is constructed as:
-$$Z_{Fused,i} = \left(\omega_{RNA,i} \cdot \mathbf{W}_R Z_{RNA,i}\right) + \left(\omega_{ADT,i} \cdot \mathbf{W}_A Z_{ADT,i}\right)$$
-This allows the model to dynamically prioritize the more stable and high-signal modality at each spatial coordinate.
+The Specific Mechanism:
+For the RNA Stream: The model looks at a spot and decides: "In this specific tissue pocket, should I trust physical grid structures ($A_s$) or non-local molecular similarities ($A_f$) more?" * For the ADT Stream: Simultaneously and independently, the model performs the same evaluation for the protein graph structures.
+The Operation: It calculates two attention weights ($\alpha_s, \alpha_f$) for each modality. The output is a blended, optimized representation for each stream.
+
+Mathematical Logic (Graph Blending):
+For each spot $i$ in a specific modality $m$ (where $m \in \{\text{RNA}, \text{ADT}\}$):
+$$\alpha_{s, i}^m, \alpha_{f, i}^m = \text{Softmax}\left( \text{MLP}_m(Z_{m, i} \cdot A_s), \text{MLP}_m(Z_{m, i} \cdot A_f) \right)$$
+The updated, within-modality optimized embeddings are formed by weighting the graph behaviors:
+$$\tilde{Z}_{\text{RNA}, i} = \alpha_{s, i}^{\text{RNA}} (\mathbf{W}_{s}^{\text{RNA}} Z_{\text{RNA}, i}) + \alpha_{f, i}^{\text{RNA}} (\mathbf{W}_{f}^{\text{RNA}} Z_{\text{RNA}, i})$$
+$$\tilde{Z}_{\text{ADT}, i} = \alpha_{s, i}^{\text{ADT}} (\mathbf{W}_{s}^{\text{ADT}} Z_{\text{ADT}, i}) + \alpha_{f, i}^{\text{ADT}} (\mathbf{W}_{f}^{\text{ADT}} Z_{\text{ADT}, i})$$
+
+### 3. Tier 2: Between-Modality Attention (Modality Gating)
+Now that the model has the "best possible version" of the RNA stream ($\tilde{Z}_{\text{RNA}}$) and the ADT stream ($\tilde{Z}_{\text{ADT}}$), it finally merges the two distinct modalities.
+
+The Specific Mechanism:
+The Operation: The model calculates a dynamic, spot-specific gate weight called $\omega$ (omega).
+The Logic: For every single one of your 3,484 spots, the network measures feature stability and entropy across modalities. If a spot is deep within a B-cell Follicle where proteomic markers like CD19 are exceptionally clean, $\omega_{\text{ADT}}$ is automatically increased, and $\omega_{\text{RNA}}$ is decreased for that specific spot.
+
+Mathematical Logic (Modality Gating & Linear Projection):
+The spot-specific modal coefficients are calculated using a Tanh-activated gating network:
+$$\omega_{\text{RNA}, i}, \omega_{\text{ADT}, i} = \text{Softmax}\left( \mathbf{v}^T \tanh\left( \mathbf{W}_g \tilde{Z}_{\text{RNA}, i} \right), \mathbf{v}^T \tanh\left( \mathbf{W}_g \tilde{Z}_{\text{ADT}, i} \right) \right)$$
+Where $\mathbf{W}_g$ is a shared gate weight matrix and $\mathbf{v}$ is an attention vector.
+The final Unified Latent Space Matrix ($Z_{\text{Fused}}$) is constructed as the definitive cross-modal summation:
+$$Z_{\text{Fused}, i} = \left(\omega_{\text{RNA}, i} \cdot \mathbf{W}_R \tilde{Z}_{\text{RNA}, i}\right) + \left(\omega_{\text{ADT}, i} \cdot \mathbf{W}_A \tilde{Z}_{\text{ADT}, i}\right)$$
+Where $\mathbf{W}_R$ and $\mathbf{W}_A$ are linear projection matrices that compress the dimensions down to the final target width.
 
 ### 4. Inputs & Dimensionalities
-Aligned Input Elements: Synchronized matrices $Z_{RNA}$ and $Z_{ADT}$ from Module 5.
-Graph Matrices: $A_s \in \mathbb{R}^{3484 \times 3484}$ and $A_f \in \mathbb{R}^{3484 \times 3484}$
+Aligned Input Tensors: Synchronized matrices $Z_{\text{RNA}} \in \mathbb{R}^{3484 \times d}$ and $Z_{\text{ADT}} \in \mathbb{R}^{3484 \times d}$ from Module 5.
+Topological Graph Tensors: Physical Grid Matrix $A_s \in \mathbb{R}^{3484 \times 3484}$ and Cellular Similarity Matrix $A_f \in \mathbb{R}^{3484 \times 3484}$ from Module 3.
 
 ### 5. Outputs & Dimensionalities
-Unified Master Embedding: $Z_{Fused} \in \mathbb{R}^{3484 \times 64}$ (A clean, low-dimensional summary of the integrated data)
+Unified Master Embedding: $Z_{\text{Fused}} \in \mathbb{R}^{3484 \times 64}$
 
-## Module 7: Reconstruction & Regularization (The Optimization Hub)
+## Module 7: Reconstruction & Regularization ("Decoder" & Hub)
 
 ### 1. The Core Architectural Problem Solved
-Unsupervised deep models can suffer from trivial solutions or over-smoothing, where the latent space discards critical biological details or blurs spatial boundaries. Module 7 addresses this by combining all loss signals into a joint optimization framework. It features a reconstruction decoder that forces the model to retain original biological details, and a spatial regularization term that penalizes un-biologically sudden changes between adjacent spots.
+If a model only compresses data down to 64 dimensions ($\mathbf{Z}_{\text{Fused}}$), it can easily drop vital biological signatures or over-smooth small spatial structures to make the mathematical optimization easier.
+Module 7 addresses this by running a Dual-Verification System. It forces the model to prove it hasn't forgotten the original data by attempting to rebuild it completely (Reconstruction), while simultaneously checking that the physical layout is smooth (Regularization).
 
 ### 2. The Step-by-Step Mechanism & Internal Flow
-Decoding Path: Parallel Multi-Layer Perceptrons (MLPs) project the 64-dimensional $Z_{Fused}$ embedding back to the original dimensions of both modalities, checking for information loss.
-Spatial Regularization Path: The model evaluates the differences between adjacent spots based on the spatial adjacency matrix ($A_s$), penalizing irregular variations.
-Joint Optimization Hub: The system calculates Mean Squared Error (MSE) for data reconstruction, combines it with the contrastive loss ($\mathcal{L}_{cl}$) and spatial loss ($\mathcal{L}_{spat}$), and updates the entire network's weights via backpropagation.
+Feature Stretching (Decoding): The module passes the 64-dimensional $\mathbf{Z}_{\text{Fused}}$ latent embedding into two separate, parallel Multi-Layer Perceptrons (MLPs). The RNA Decoder stretches the data back out to 18,085 dimensions ($\hat{\mathbf{X}}_{\text{RNA}}$), and the ADT Decoder stretches it to 31 dimensions ($\hat{\mathbf{X}}_{\text{ADT}}$).
+Fidelity Cross-Check (MSE Loss): The model calculates the Mean Squared Error (MSE) by directly comparing these high-dimensional reconstructions against the actual baseline normalized matrices ($\tilde{\mathbf{X}}_{\text{RNA}}, \tilde{\mathbf{X}}_{\text{ADT}}$) obtained back in Module 1.
+Neighborhood Evaluation (Spatial Loss): Simultaneously, the module uses the physical grid roadmap ($\mathbf{A}_s$) to check the latent space. It measures the distance between the 64-dimensional vectors of spots that are physically touching. If neighbors look completely different, it triggers a penalty.
+Loss Summation: All errors are compiled into $\mathcal{L}_{\text{total}}$ to train the entire network via backpropagation.
 
 ### 3. Algorithms & Deep Mathematical Logic
-Reconstruction Loss calculation (MSE): Measures how well the model reconstructs the normalized inputs:
-$$\mathcal{L}_{recon} = \frac{1}{N}\sum_{i=1}^N \|\hat{X}_{RNA,i} - \tilde{X}_{RNA,i}\|^2 + \frac{1}{N}\sum_{i=1}^N \|\hat{X}_{ADT,i} - \tilde{X}_{ADT,i}\|^2$$
-Spatial Smoothness Regularization: Implemented using a Graph Laplacian penalty to enforce spatial continuity:
-$$\mathcal{L}_{spat} = \sum_{i=1}^N \sum_{j=1}^N A_{s,ij} \|Z_{Fused,i} - Z_{Fused,j}\|^2$$
-This minimizes the distance between physical neighbors in the latent space, smoothing out technical noise while keeping structural boundaries intact.
-Joint Objective Equation: The total optimization loss is calculated as:
-$$\mathcal{L}_{total} = \lambda_1 \mathcal{L}_{cl} + \lambda_2 \mathcal{L}_{recon} + \lambda_3 \mathcal{L}_{spat}$$
+Reconstruction Loss (MSE): Quantifies how much original biological information was preserved during compression:
+$$\mathcal{L}_{\text{recon}} = \frac{1}{N}\sum_{i=1}^{N} \|\tilde{\mathbf{X}}_{\text{RNA}, i} - \hat{\mathbf{X}}_{\text{RNA}, i}\|^2 + \frac{1}{N}\sum_{i=1}^{N} \|\tilde{\mathbf{X}}_{\text{ADT}, i} - \hat{\mathbf{X}}_{\text{ADT}, i}\|^2$$
+Spatial Regularization Loss (Graph Laplacian Smoothing): Penalizes sudden molecular jumps between immediate physical neighbors to eliminate technical "salt-and-pepper" noise:
+$$\mathcal{L}_{\text{spat}} = \sum_{i,j} \mathbf{A}_{s, ij} \|\mathbf{Z}_{\text{Fused}, i} - \mathbf{Z}_{\text{Fused}, j}\|^2$$
+Joint Objective Optimization Function: The definitive optimization formula that trains KAC-Net:
+$$\mathcal{L}_{\text{total}} = \lambda_1 \mathcal{L}_{\text{cl}} + \lambda_2 \mathcal{L}_{\text{recon}} + \lambda_3 \mathcal{L}_{\text{spat}}$$
+Where $\lambda_{1,2,3}$ are balancing hyperparameters.
 
 ### 4. Inputs & Dimensionalities
-Latent Driver: $Z_{Fused} \in \mathbb{R}^{3484 \times 64}$
-Spatial Roadmap: $A_s \in \mathbb{R}^{3484 \times 3484}$
-Ground Truth Checkpoints: $\tilde{X}_{RNA} \in \mathbb{R}^{3484 \times 18085}$ and $\tilde{X}_{ADT} \in \mathbb{R}^{3484 \times 31}$
+Latent Feature Vector: $\mathbf{Z}_{\text{Fused}} \in \mathbb{R}^{3484 \times 64}$ from Module 6.
+Physical Topology Grid: $\mathbf{A}_s \in \mathbb{R}^{3484 \times 3484}$ from Module 3.
+Ground Truth Checkpoints: Normalized inputs $\tilde{\mathbf{X}}_{\text{RNA}} \in \mathbb{R}^{3484 \times 18085}$ and $\tilde{\mathbf{X}}_{\text{ADT}} \in \mathbb{R}^{3484 \times 31}$ from Module 1.
 
 ### 5. Outputs & Dimensionalities
-Reconstructed Guess Vectors:
-$\hat{X}_{RNA} \in \mathbb{R}^{3484 \times 18085}$ (Decoded transcript projections)
-$\hat{X}_{ADT} \in \mathbb{R}^{3484 \times 31}$ (Decoded protein projections)
-Optimization Signal: $\mathcal{L}_{total} \in \mathbb{R}^1$ (Triggers the parameter gradient updates across all modules)
+Reconstructed Matrices: $\hat{\mathbf{X}}_{\text{RNA}} \in \mathbb{R}^{3484 \times 18085}$ and $\hat{\mathbf{X}}_{\text{ADT}} \in \mathbb{R}^{3484 \times 31}$ (Used only during training to compute the loss value).
+Scalar Total Loss ($\mathcal{L}_{\text{total}}$): The ultimate error metric driving the gradient updates across the entire neural network.
 
 # Phase 4: Unsupervised Biological Discovery
 
