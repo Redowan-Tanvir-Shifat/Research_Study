@@ -2,33 +2,33 @@
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                         PHASE 1: FEATURE EXTRACTION & ENRICHMENT            │
+│                         PHASE 1: FEATURE EXTRACTION & ENRICHMENT             
 └──────────────────────────────────────────────────────────────────────────────┘
 
         ┌──────────────────────────── INPUT DATA ────────────────────────────┐
+        │                                                                    │
+        │  Raw RNA Counts : X_RNA ∈ R^(3484 × 18085)                         │
+        │  Raw ADT Counts : X_ADT ∈ R^(3484 × 31)                            │
         │                                                                   │
-        │  Raw RNA Counts : X_RNA ∈ R^(3484 × 18085)                        │
-        │  Raw ADT Counts : X_ADT ∈ R^(3484 × 31)                           │
-        │                                                                   │
-        └───────────────────────────────────────────────────────────────────┘
+        └──────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ MODULE 1: MULTIMODAL PREPROCESSING                                          │
+│ MODULE 1: MULTIMODAL PREPROCESSING                                           │
 ├──────────────────────────────────────────────────────────────────────────────┤
-│ RNA Pipeline:                                                               │
-│   • Library-size Normalization                                              │
-│   • Log1p Transformation                                                    │
+│ RNA Pipeline:                                                                │
+│   • Library-size Normalization                                               │
+│   • Log1p Transformation                                                     │
 │                                                                              │
-│ ADT Pipeline:                                                               │
-│   • CLR (Centered Log Ratio) Normalization                                  │
+│ ADT Pipeline:                                                                │
+│   • CLR (Centered Log Ratio) Normalization                                   │
 │                                                                              │
-│ Purpose:                                                                    │
-│   Stabilize variance and align feature scales                               │
+│ Purpose:                                                                     │
+│   Stabilize variance and align feature scales                                │
 │                                                                              │
-│ Output:                                                                     │
-│   X̃_RNA , X̃_ADT                                                            │
+│ Output:                                                                      │
+│   X̃_RNA , X̃_ADT                                                              │
 └──────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -142,7 +142,10 @@
 ├──────────────────────────────────────────────────────────────────────────────┤
 │ Inputs:                                                                     │
 │   • Aligned Z_RNA                                                           │
-│   • Aligned Z_ADT                                                           │
+│   • Aligned Z_ADT
+│   • A_s                                                                     │
+│   • A_f                                                                     │
+
 │                                                                              │
 │ Within-Modality Attention:                                                  │
 │   • Learns importance of A_s vs A_f                                         │
