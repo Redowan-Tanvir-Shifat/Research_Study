@@ -378,7 +378,7 @@ class ResGATModel(nn.Module):
         in_features : int
             Input feature dimension (default: 512 from Module 2)
         adt_features : int
-            Raw ADT feature dimension (default: 31)
+            Normalized ADT feature dimension (default: 31, CLR-normalized from Module 1)
         hidden_dim : int
             Hidden dimension per attention head (default: 256)
         num_layers : int
@@ -462,8 +462,8 @@ class ResGATModel(nn.Module):
             Expected: H_RNA (3484, 512) from Module 2
         
         x_adt : torch.Tensor
-            ADT node features (num_nodes, adt_features)
-            Expected: X_ADT (3484, 31) from Module 1
+            Normalized ADT node features (num_nodes, adt_features)
+            Expected: X̃_ADT (3484, 31) CLR-normalized from Module 1
         
         adj_spatial : torch.Tensor or csr_matrix
             Spatial adjacency matrix (3484, 3484)
@@ -590,8 +590,8 @@ class ResGATModel(nn.Module):
             RNA node features (num_nodes, in_features)
             Expected: H_RNA (3484, 512) from Module 2
         x_adt : torch.Tensor
-            ADT node features (num_nodes, adt_features)
-            Expected: X_ADT (3484, 31) from Module 1
+            Normalized ADT node features (num_nodes, adt_features)
+            Expected: X̃_ADT (3484, 31) CLR-normalized from Module 1
         adj_spatial : adjacency matrix or edge list
             Spatial graph structure (k=6 neighbors)
         adj_feature : adjacency matrix or edge list
@@ -624,7 +624,7 @@ def create_gat_model(
     in_features : int
         Input dimension for RNA (default: 512 from Module 2 output)
     adt_features : int
-        Raw ADT feature dimension (default: 31)
+        Normalized ADT feature dimension (default: 31, CLR-normalized from Module 1)
     hidden_dim : int
         Hidden dimension per attention head (default: 256)
     num_layers : int
@@ -643,10 +643,10 @@ def create_gat_model(
     --------
     >>> import torch
     >>> model = create_gat_model(device=torch.device('cuda'))
-    >>> H_rna = torch.randn(3484, 512)
-    >>> X_adt = torch.randn(3484, 31)
+    >>> H_rna = torch.randn(3484, 512)      # From Module 2
+    >>> X_adt_tilde = torch.randn(3484, 31) # X̃_ADT (CLR-normalized) from Module 1
     >>> # A_s, A_f from Module 3 (sparse matrices or edge indices)
-    >>> Z_rna, Z_adt = model.encode(H_rna, X_adt, A_s, A_f)
+    >>> Z_rna, Z_adt = model.encode(H_rna, X_adt_tilde, A_s, A_f)
     >>> Z_rna.shape, Z_adt.shape  # Both (3484, 512)
     """
     model = ResGATModel(

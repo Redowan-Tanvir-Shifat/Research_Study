@@ -6,13 +6,13 @@
 
 **Input:**
 - Enriched RNA embedding: $H_{\text{RNA}} \in \mathbb{R}^{3484 \times 512}$ (from Module 2)
-- Normalized ADT: $\tilde{X}_{\text{ADT}} \in \mathbb{R}^{3484 \times 31}$ (from Module 1)
+- **Normalized** ADT (CLR): $\tilde{X}_{\text{ADT}} \in \mathbb{R}^{3484 \times 31}$ (from Module 1 - NOT raw counts)
 - Spatial adjacency: $A_s \in \mathbb{R}^{3484 \times 3484}$ (sparse, from Module 3)
 - Feature adjacency: $A_f \in \mathbb{R}^{3484 \times 3484}$ (sparse, from Module 3)
 
 **Processing:**
-- ADT projection: $\tilde{X}_{\text{ADT}} \xrightarrow{W_{\text{proj}}} X_{\text{ADT}}^{(512)}$ (31 → 512 dims)
-- Both modalities processed through **identical** graph structure
+- ADT projection: $\tilde{X}_{\text{ADT}} \xrightarrow{W_{\text{proj}}} \tilde{X}_{\text{ADT}}^{(512)}$ (31 → 512 dims, preserves normalization)
+- Both modalities processed through **identical** graph structure with shared attention weights
 
 **Output:**
 - Spatially-informed RNA embedding: $Z_{\text{RNA}} \in \mathbb{R}^{3484 \times 512}$
@@ -115,18 +115,18 @@ $$H^{(l+1)} = H' + H^{(l)}$$
 
 ```
 Input RNA: H_RNA (3484 cells × 512 features)
-Input ADT: X_ADT (3484 cells × 31 features)
+Input ADT: X̃_ADT (3484 cells × 31 features - CLR-normalized)
            A_s, A_f (sparse 3484×3484 graphs)
            ↓
     [ADT Projection Layer]
-    X_ADT (3484, 31) → (3484, 512)
+    X̃_ADT (3484, 31) → (3484, 512)
            ↓
     ┌──────────────────────────────────────┐
     │ PARALLEL PROCESSING (Same Graphs)    │
     ├──────────────────────────────────────┤
     │ RNA Stream          ADT Stream       │
     │ ════════════════════════════════     │
-    │ H_RNA (512)         X_ADT_proj (512) │
+    │ H_RNA (512)         X̃_ADT_proj (512)│
     │       ↓                   ↓          │
     │  ResGATv2 Layer 1   ResGATv2 Layer 1 │
     │  Spatial (A_s)      Spatial (A_s)    │
@@ -297,7 +297,7 @@ Output: (3484, 256)
 
 ### 3. `ResGATModel(in_features=512, adt_features=31, hidden_dim=256, num_layers=2, num_heads=8, dropout=0.1, negative_slope=0.2)`
 
-**What it does:** Complete Residual GATv2 encoder with DUAL-MODALITY support. Processes both RNA and ADT through the same graph structure with shared attention patterns, using ADT projection to align both modalities to 512 dimensions.
+**What it does:** Complete Residual GATv2 encoder with DUAL-MODALITY support. Processes both RNA and **normalized ADT** (X̃_ADT from Module 1) through the same graph structure with shared attention patterns, projecting normalized ADT to align both modalities to 512 dimensions.
 
 **Class initialization:**
 ```python
@@ -305,7 +305,7 @@ class ResGATModel(nn.Module):
     def __init__(
         self,
         in_features: int = 512,           # RNA embedding dim
-        adt_features: int = 31,           # Raw ADT dim
+        adt_features: int = 31,           # Normalized ADT dim (X̃_ADT)
         hidden_dim: int = 256,
         num_layers: int = 2,
         num_heads: int = 8,
@@ -317,7 +317,7 @@ class ResGATModel(nn.Module):
 **Key Components:**
 | Component | Count | Role |
 |-----------|-------|------|
-| adt_projection | 1 | Linear(31 → 512) - Projects ADT to RNA space |
+| adt_projection | 1 | Linear(31 → 512) - Projects normalized ADT (X̃_ADT) to RNA space |
 | spatial_layers | 2 | ResGATv2 on spatial graph (shared for both modalities) |
 | feature_layers | 2 | ResGATv2 on feature graph (shared for both modalities) |
 | fusion_layers | 2 | Combine + residual (shared for both modalities) |
@@ -327,7 +327,7 @@ class ResGATModel(nn.Module):
 def forward(
     self,
     x_rna: torch.Tensor,                           # (3484, 512)
-    x_adt: torch.Tensor,                           # (3484, 31)
+    x_adt: torch.Tensor,                           # (3484, 31) X̃_ADT
     adj_spatial: Union[torch.Tensor, csr_matrix],  # (3484, 3484)
     adj_feature: Union[torch.Tensor, csr_matrix],  # (3484, 3484)
     return_attention: bool = False
@@ -339,11 +339,11 @@ def forward(
 
 **Computation per layer:**
 ```
-H_RNA_in (3484, 512)    X_ADT_in (3484, 31)
+H_RNA_in (3484, 512)    X̃_ADT_in (3484, 31)
     ↓                           ↓
     │                      [Projection: 31→512]
     │                           ↓
-    │                      X_ADT_proj (3484, 512)
+    │                      X̃_ADT_proj (3484, 512)
     ├─────────┬──────────────────┤
     │         │                  │
 ResGATv2_s ResGATv2_f        ResGATv2_s ResGATv2_f
@@ -370,12 +370,12 @@ from scipy.sparse import csr_matrix
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 model = create_gat_model(device=device)
 
-H_rna = torch.randn(3484, 512, device=device)
-X_adt = torch.randn(3484, 31, device=device)
+H_rna = torch.randn(3484, 512, device=device)          # From Module 2
+X_adt_tilde = torch.randn(3484, 31, device=device)    # X̃_ADT (CLR-normalized) from Module 1
 A_s = csr_matrix(...)  # From Module 3
 A_f = csr_matrix(...)  # From Module 3
 
-Z_rna, Z_adt = model.encode(H_rna, X_adt, A_s, A_f)
+Z_rna, Z_adt = model.encode(H_rna, X_adt_tilde, A_s, A_f)
 # Output: Z_rna, Z_adt both (3484, 512) in shared space
 ```
 
@@ -467,8 +467,9 @@ Per **flow.md**, **module_explanation.md**, and **KAC-Net_MASTER_PLAN.md**:
 |-----------|-----------------|
 | Module 4: Local Spatial Encoding | ✓ Residual GATv2 with dual-modality support |
 | Algorithm | ✓ GATv2 attention with residual skip connections |
-| Dual modalities | ✓ Parallel RNA + ADT processing with shared graphs |
-| ADT projection | ✓ 31 → 512 dimensions to match RNA space |
+| Dual modalities | ✓ Parallel RNA + normalized ADT (X̃_ADT) processing with shared graphs |
+| ADT input | ✓ Takes CLR-normalized X̃_ADT from Module 1 (not raw X_ADT) |
+| ADT projection | ✓ 31 → 512 dimensions to match RNA space (preserves normalization) |
 | Dual graphs | ✓ Spatial (k=6) + Feature (k=20) streams (shared) |
 | Mechanism | ✓ Neighbor communication via learned attention weights |
 | Residual skip-connections | ✓ Prevent over-smoothing, enable deep networks |
