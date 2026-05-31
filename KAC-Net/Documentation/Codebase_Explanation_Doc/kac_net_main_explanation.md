@@ -394,13 +394,17 @@ model = create_kac_net(config, device='cuda')
 ```python
 import torch
 from torch.utils.data import DataLoader, Dataset
+import scanpy as sc
 import pandas as pd
 import numpy as np
 
-# Load lymph node dataset
-rna_data = pd.read_csv('data/10x_human_lymph_node_A1/rna.csv', index_col=0).values
-adt_data = pd.read_csv('data/10x_human_lymph_node_A1/adt.csv', index_col=0).values
-coords = pd.read_csv('data/10x_human_lymph_node_A1/spatial.csv', index_col=0).values
+# Load lymph node dataset (spatial coordinates embedded in .h5ad)
+adata = sc.read_h5ad('data/10x_human_lymph_node_A1/adata_RNA.h5ad')
+rna_data = adata.X  # Shape: (3484, 18085)
+coords = adata.obsm['spatial']  # Spatial coordinates from .h5ad
+
+# Load ADT data
+adt_data = sc.read_h5ad('data/10x_human_lymph_node_A1/adata_ADT.h5ad').X  # Shape: (3484, 31)
 
 # Build graphs
 from modules.graph_construction import GraphConstructionModule
@@ -766,7 +770,7 @@ print(f"✓ Shape: {z_fused.shape}, Mean: {z_fused.mean():.4f}, Std: {z_fused.st
 
 # ========== MODULE 8: CLUSTERING ==========
 print("\nPerforming Module 8: Spatial domain identification...")
-gt_labels, _, _, _ = load_ground_truth_annotations('data/annotation.csv')
+gt_labels, _, _, _ = load_ground_truth_annotations('data/10x_human_lymph_node_A1/annotation.csv')
 
 results = leiden_clustering_with_sweep(
     z_fused,
