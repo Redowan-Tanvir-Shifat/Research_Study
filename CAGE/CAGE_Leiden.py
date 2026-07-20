@@ -351,8 +351,11 @@ class Encoder_overall(Module):
         self.encoder_omics2 = Encoder(self.dim_in_feat_omics2, self.dim_out_feat_omics2)
         self.decoder_omics2 = Decoder(self.dim_out_feat_omics2, self.dim_in_feat_omics2)
 
-        self.atten_omics1 = GatedFusionLayer(self.dim_out_feat_omics1)
-        self.atten_omics2 = GatedFusionLayer(self.dim_out_feat_omics2)
+        # self.atten_omics1 = GatedFusionLayer(self.dim_out_feat_omics1)
+        # self.atten_omics2 = GatedFusionLayer(self.dim_out_feat_omics2)
+        self.atten_omics1 = QKVCrossFusionLayer(self.dim_out_feat_omics1, attention_type=self.attention_type)
+        self.atten_omics2 = QKVCrossFusionLayer(self.dim_out_feat_omics2, attention_type=self.attention_type)
+
         self.atten_cross = QKVCrossFusionLayer(self.dim_out_feat_omics1, attention_type=self.attention_type)
 
     def forward(self, features_omics1, features_omics2, adj_spatial_omics1, adj_feature_omics1, adj_spatial_omics2, adj_feature_omics2):
@@ -947,7 +950,8 @@ from sklearn.metrics import adjusted_rand_score
 
 # we set 'mclust' as clustering tool by default. Users can also select 'leiden' and 'louvain'
 
-tool = 'mclust' # mclust, leiden, and louvain
+# tool = 'mclust' # mclust, leiden, and louvain
+tool = 'leiden' # mclust, leiden, and louvain
 clustering(adata, key='SpatialGlue', add_key='SpatialGlue', n_clusters=10, method=tool, use_pca=True)
 
 import numpy as np

@@ -351,10 +351,11 @@ class Encoder_overall(Module):
         self.encoder_omics2 = Encoder(self.dim_in_feat_omics2, self.dim_out_feat_omics2)
         self.decoder_omics2 = Decoder(self.dim_out_feat_omics2, self.dim_in_feat_omics2)
 
-        self.atten_omics1 = GatedFusionLayer(self.dim_out_feat_omics1)
-        self.atten_omics2 = GatedFusionLayer(self.dim_out_feat_omics2)
-        # self.atten_omics1 = QKVCrossFusionLayer(self.dim_out_feat_omics1, attention_type='local')
-        # self.atten_omics2 = QKVCrossFusionLayer(self.dim_out_feat_omics2, attention_type='local')
+        # self.atten_omics1 = GatedFusionLayer(self.dim_out_feat_omics1)
+        # self.atten_omics2 = GatedFusionLayer(self.dim_out_feat_omics2)
+        self.atten_omics1 = QKVCrossFusionLayer(self.dim_out_feat_omics1, attention_type=self.attention_type)
+        self.atten_omics2 = QKVCrossFusionLayer(self.dim_out_feat_omics2, attention_type=self.attention_type)
+
         self.atten_cross = QKVCrossFusionLayer(self.dim_out_feat_omics1, attention_type=self.attention_type)
 
     def forward(self, features_omics1, features_omics2, adj_spatial_omics1, adj_feature_omics1, adj_spatial_omics2, adj_feature_omics2):
@@ -548,7 +549,7 @@ def mclust_R(adata, num_cluster, modelNames='EEE', used_obsm='emb_pca', random_s
 
     return adata
 
-def clustering(adata, n_clusters=10, key='emb', add_key='SpatialGlue', method='mclust', start=0.1, end=3.0, increment=0.01, use_pca=False, n_comps=20):
+def clustering(adata, n_clusters=7, key='emb', add_key='SpatialGlue', method='mclust', start=0.1, end=3.0, increment=0.01, use_pca=False, n_comps=20):
     """\
     Spatial clustering based the latent representation.
 
@@ -837,6 +838,8 @@ class Train_SpatialGlue:
 
 
 
+
+# path='/Users/imran/Developer/FYDP/SMART_data/'
 
 # Path for Human Lymph Node 10x Visium
 rna_path = './data/10x_human_lymph_node_A1/adata_RNA.h5ad'
