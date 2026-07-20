@@ -143,96 +143,6 @@ class InfoNCELoss(nn.Module):
         )
 
 
-class SimilarityComputer(nn.Module):
-    """
-    Compute similarity matrices between RNA and ADT embeddings.
-
-    Provides utilities for computing pairwise cosine similarities and managing
-    positive/negative pairs in the contrastive learning framework.
-
-    Args:
-        similarity_metric (str): Type of similarity ('cosine', 'euclidean', 'dot').
-            Default: 'cosine' - matches GAT attention mechanism.
-
-    Methods:
-        compute_similarity(z1, z2): Pairwise similarity matrix
-        get_positive_mask(batch_size): Diagonal mask for positive pairs
-        get_negative_mask(batch_size): Off-diagonal mask for negative pairs
-
-    Example:
-        >>> computer = SimilarityComputer(similarity_metric='cosine')
-        >>> z_rna = torch.randn(3484, 512)
-        >>> z_adt = torch.randn(3484, 512)
-        >>> sim_matrix = computer.compute_similarity(z_rna, z_adt)
-        >>> pos_mask = computer.get_positive_mask(3484)
-    """
-
-    def __init__(self, similarity_metric='cosine'):
-        """Initialize similarity computer."""
-        super(SimilarityComputer, self).__init__()
-        self.similarity_metric = similarity_metric
-
-    def compute_similarity(self, z1, z2):
-        """
-        Compute pairwise similarity matrix between two embedding sets.
-
-        Args:
-            z1 (torch.Tensor): Shape (N, d) - First set of embeddings
-            z2 (torch.Tensor): Shape (N, d) - Second set of embeddings
-
-        Returns:
-            sim_matrix (torch.Tensor): Shape (N, N) - Pairwise similarities
-        """
-        if self.similarity_metric == 'cosine':
-            # Normalize embeddings
-            z1_norm = F.normalize(z1, p=2, dim=1)  # (N, d)
-            z2_norm = F.normalize(z2, p=2, dim=1)  # (N, d)
-            # Cosine similarity: normalized @ normalized^T
-            sim_matrix = torch.mm(z1_norm, z2_norm.T)  # (N, N)
-
-        elif self.similarity_metric == 'dot':
-            # Dot product similarity (no normalization)
-            sim_matrix = torch.mm(z1, z2.T)  # (N, N)
-
-        elif self.similarity_metric == 'euclidean':
-            # Negative Euclidean distance as similarity
-            distances = torch.cdist(z1, z2, p=2)  # (N, N)
-            sim_matrix = -distances  # Negate so higher similarity = more similar
-
-        else:
-            raise ValueError(f"Unknown similarity metric: {self.similarity_metric}")
-
-        return sim_matrix
-
-    @staticmethod
-    def get_positive_mask(batch_size, device='cpu'):
-        """
-        Create diagonal mask for positive pairs (same-spot RNA-ADT).
-
-        Returns:
-            mask (torch.Tensor): Shape (batch_size,) with value 1.0
-                Identifies which positions in similarity matrix are positives
-        """
-        return torch.arange(batch_size, device=device)
-
-    @staticmethod
-    def get_negative_mask(batch_size, device='cpu'):
-        """
-        Create off-diagonal mask for negative pairs (different-spot).
-
-        Returns:
-            mask (torch.Tensor): Shape (batch_size, batch_size) of 0s and 1s
-                1 at positions (i,j) where i ≠ j (negatives)
-        """
-        mask = torch.ones((batch_size, batch_size), device=device)
-        mask.fill_diagonal_(0)  # Set diagonal to 0 (positives)
-        return mask.bool()
-
-    def __repr__(self):
-        """String representation."""
-        return f"{self.__class__.__name__}(similarity_metric='{self.similarity_metric}')"
-
-
 class ContrastiveAlignmentModule(nn.Module):
     """
     Cross-Modal Contrastive Alignment (COSMOS Logic).
@@ -265,7 +175,6 @@ class ContrastiveAlignmentModule(nn.Module):
 
     Attributes:
         loss_fn (InfoNCELoss): Contrastive loss function
-        sim_computer (SimilarityComputer): Similarity computation utilities
         temperature (float): Temperature scaling parameter
 
     Example:
@@ -287,7 +196,6 @@ class ContrastiveAlignmentModule(nn.Module):
         super(ContrastiveAlignmentModule, self).__init__()
         self.temperature = temperature
         self.loss_fn = InfoNCELoss(temperature=temperature)
-        self.sim_computer = SimilarityComputer(similarity_metric='cosine')
 
     def forward(self, z_rna, z_adt, return_similarity=False):
         """
@@ -315,8 +223,11 @@ class ContrastiveAlignmentModule(nn.Module):
 
         if return_similarity:
             # Optionally return similarity matrices for inspection
-            sim_rna_to_adt = self.sim_computer.compute_similarity(z_rna, z_adt)
-            sim_adt_to_rna = self.sim_computer.compute_similarity(z_adt, z_rna)
+            # Normalize for cosine similarity
+            z_rna_norm = F.normalize(z_rna, p=2, dim=1)
+            z_adt_norm = F.normalize(z_adt, p=2, dim=1)
+            sim_rna_to_adt = torch.mm(z_rna_norm, z_adt_norm.T)
+            sim_adt_to_rna = torch.mm(z_adt_norm, z_rna_norm.T)
             return loss_cl, sim_rna_to_adt, sim_adt_to_rna
 
         return loss_cl
@@ -337,8 +248,10 @@ class ContrastiveAlignmentModule(nn.Module):
         Returns:
             metrics (dict): Dictionary with quality metrics
         """
-        # Compute similarity matrices
-        sim_rna_to_adt = self.sim_computer.compute_similarity(z_rna, z_adt)
+        # Normalize and compute similarity matrix
+        z_rna_norm = F.normalize(z_rna, p=2, dim=1)
+        z_adt_norm = F.normalize(z_adt, p=2, dim=1)
+        sim_rna_to_adt = torch.mm(z_rna_norm, z_adt_norm.T)
 
         # Get positive mask (diagonal) and negative mask (off-diagonal)
         batch_size = z_rna.shape[0]
@@ -363,8 +276,7 @@ class ContrastiveAlignmentModule(nn.Module):
         """String representation."""
         return (
             f"{self.__class__.__name__}(temperature={self.temperature})\n"
-            f"  ├─ InfoNCELoss: {self.loss_fn}\n"
-            f"  └─ SimilarityComputer: {self.sim_computer}"
+            f"  └─ InfoNCELoss: {self.loss_fn}"
         )
 
 
