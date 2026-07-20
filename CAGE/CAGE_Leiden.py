@@ -351,10 +351,10 @@ class Encoder_overall(Module):
         self.encoder_omics2 = Encoder(self.dim_in_feat_omics2, self.dim_out_feat_omics2)
         self.decoder_omics2 = Decoder(self.dim_out_feat_omics2, self.dim_in_feat_omics2)
 
-        # self.atten_omics1 = GatedFusionLayer(self.dim_out_feat_omics1)
-        # self.atten_omics2 = GatedFusionLayer(self.dim_out_feat_omics2)
-        self.atten_omics1 = QKVCrossFusionLayer(self.dim_out_feat_omics1, attention_type=self.attention_type)
-        self.atten_omics2 = QKVCrossFusionLayer(self.dim_out_feat_omics2, attention_type=self.attention_type)
+        self.atten_omics1 = GatedFusionLayer(self.dim_out_feat_omics1)
+        self.atten_omics2 = GatedFusionLayer(self.dim_out_feat_omics2)
+        # self.atten_omics1 = QKVCrossFusionLayer(self.dim_out_feat_omics1, attention_type=self.attention_type)
+        # self.atten_omics2 = QKVCrossFusionLayer(self.dim_out_feat_omics2, attention_type=self.attention_type)
 
         self.atten_cross = QKVCrossFusionLayer(self.dim_out_feat_omics1, attention_type=self.attention_type)
 
